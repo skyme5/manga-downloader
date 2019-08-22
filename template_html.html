@@ -1,0 +1,62 @@
+<!--
+  @Author: Aakash Gajjar
+  @Date:   2019-08-07 11:39:16
+  @Last Modified by:   Sky
+  @Last Modified time: 2019-08-07 11:39:44
+-->
+
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset=\"utf-8\">
+    <meta http-equiv=\"X-UA-Compatible\" content=\"IE=edge\">
+    <title>Chapter {{chapter_index}} · {{mange_title}}</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+        }
+
+        img {
+            margin: auto;
+            display: block;
+						max-width: 95%;
+        }
+
+        .prev {
+            left: 0;
+        }
+
+        .next {
+            right: 0;
+        }
+
+        .prev,
+        .next {
+            color: black;
+            position: fixed;
+            display: flex;
+            height: -webkit-fill-available;
+            width: 150px;
+            align-items: center;
+            font-size: 10rem;
+            text-decoration: none;
+        }
+
+        .prev div,
+        .next div {
+            width: 100%;
+            text-align: center;
+        }
+
+        .prev:hover,
+        .next:hover {
+            background-color: rgba(49, 49, 49, 0.43);
+        }
+    </style>
+</head>
+<body>
+{{button}}
+{{body}}
+</body>
+</html>
