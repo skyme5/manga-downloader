@@ -2,7 +2,7 @@
   @Author: Aakash Gajjar
   @Date:   2019-08-07 11:39:16
   @Last Modified by:   Sky
-  @Last Modified time: 2019-08-07 11:39:44
+  @Last Modified time: 2019-08-22 14:42:31
 -->
 
 <!DOCTYPE html>
@@ -12,6 +12,10 @@
     <meta http-equiv=\"X-UA-Compatible\" content=\"IE=edge\">
     <title>Chapter {{chapter_index}} · {{mange_title}}</title>
     <style>
+        .hidden {
+            display: none;
+        }
+
         body {
             margin: 0;
             padding: 0;
@@ -20,7 +24,7 @@
         img {
             margin: auto;
             display: block;
-						max-width: 95%;
+			max-width: 95%;
         }
 
         .prev {
@@ -52,6 +56,13 @@
         .prev:hover,
         .next:hover {
             background-color: rgba(49, 49, 49, 0.43);
+        }
+
+        article {
+            width: 60%;
+            max-width: 650px;
+            margin: auto;
+            padding: 200px 0;
         }
     </style>
 </head>

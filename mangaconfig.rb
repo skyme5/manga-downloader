@@ -2,15 +2,19 @@
 # @Author: Aakash Gajjar
 # @Date:   2019-08-03 20:14:06
 # @Last Modified by:   Sky
-# @Last Modified time: 2019-08-22 13:24:24
+# @Last Modified time: 2019-08-22 13:56:08
 
 require 'json'
 
 class MangaConfig
-  def initialize()
-    @prefix = "D:/temp"
-    @manga_config = config_get
-    save_config
+  def initialize
+    @prefix = "Z:/Books/Manga"
+    @manga_config = config_create_new
+    config_save
+  end
+
+  def get
+    return @manga_config
   end
 
   def config_save
@@ -20,9 +24,14 @@ class MangaConfig
     out.close
   end
 
-  def manga_name(title)
-    @manga_config["title"].gsub(/[\\\/\:\*\?\"\<\>\|]+/, ' - ')
-                          .gsub(/[ ]{2,}/, ' ')
+  def normalize(title)
+    title.gsub(/[\\\/\:\*\?\"\<\>\|]+/, ' - ')
+         .gsub(/\r\n/im, ' ')
+         .gsub(/[ ]{2,}/im, ' ')
+  end
+
+  def manga_name
+    @manga_config["name"]
   end
 
   def config_filename
@@ -58,29 +67,33 @@ class MangaConfig
 
     puts "Is this Light Novel? [y/n]: "
     ln = STDIN.gets.chomp
-    ln = ln.empty?
+    ln = !ln.empty? ? ln.downcase.include?("y") : false
+    puts "This is a #{ln ? "Light Novel" : "Manga"}"
 
     puts "Enter index_start[default = 1]: "
     input = STDIN.gets.chomp
     index_start = input.empty? ? 1 : input.to_i
 
-    puts "Enter Selector for chapter[default = '.chapter-list a']: "
+    pre_selected = ln ? "#accordion .tab-content li a" : ".chapter-list a"
+    puts "Enter Selector for chapter[default = '#{pre_selected }']: "
     input = STDIN.gets.chomp
-    chapter_selector = input.empty? ? ".chapter-list a" : input
+    chapter_selector = ln ? (input.empty? ? "#accordion li a" : input) : (input.empty? ? ".chapter-list a" : input)
 
-    puts "Enter Selector for page[default = '.vung-doc img']: "
+    pre_selected = ln ? ".chapter-content3 .desc" : ".vung-doc img"
+    puts "Enter Selector for page[default = '#{pre_selected }']: "
     input = STDIN.gets.chomp
-    page_selector = input.empty? ? ".vung-doc img" : input
+    page_selector = ln ? (input.empty? ? ".chapter-content3 .desc" : input) : (input.empty? ? ".vung-doc img" : input)
 
     #puts "Enter Selector for cover[default = '.manga-info-pic img']: "
     #input = STDIN.gets.chomp
     #cover_selector = input.empty? ? ".manga-info-pic img" : input
 
     return {
-      "title" => title,
+      "title" => title.gsub(/\r\n/im, ' ')
+                      .gsub(/[ ]{2,}/im, ' '),
       "url" => url,
       "ln" => ln,
-      "name" => [title, ln ? " - Light Novel" : ""].join(""),
+      "name" => [normalize(title), ln ? " - Light Novel" : ""].join(""),
       "chapters" => {
         "index_start" => index_start,
         "index_end" => 0,

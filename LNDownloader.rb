@@ -2,7 +2,7 @@
 # @Author: Aakash Gajjar
 # @Date:   2019-08-03 20:14:06
 # @Last Modified by:   Sky
-# @Last Modified time: 2019-08-22 16:23:01
+# @Last Modified time: 2019-08-22 16:11:46
 
 require 'mechanize'
 require 'nokogiri'
@@ -13,7 +13,7 @@ require 'ColoredLogger'
 
 require_relative 'templates'
 
-class MangaDownloader
+class LNDownloader
   def initialize(config)
     @start = Time.now
     @logger = ColoredLogger.new(STDOUT)
@@ -62,6 +62,7 @@ class MangaDownloader
   end
 
   def page_fetch(url)
+    log(url)
     Nokogiri::HTML.parse(open(url))
   end
 
@@ -83,15 +84,15 @@ class MangaDownloader
 
   def fetch_manga_page
     doc = page_fetch(@manga_config["url"])
-    chapters = doc.css(@manga_config["selector"]["chapter"]).to_a.reverse
+    chapters = doc.css(@manga_config["selector"]["chapter"]).to_a
     log_i("Found #{chapters.length} chapters")
     _index = @manga_config["chapters"]["index_start"].to_i
     chapters.map!{
       |e|
       data = {
         :chapter => _index,
-        :title => e["title"],
-        :url => e["href"].gsub("?style=paged", "?style=list")
+        :title => e.text,
+        :url => e["href"]
       }
       _index = _index + 1
       data
@@ -100,21 +101,17 @@ class MangaDownloader
 
   def fetch_chapter_page(url)
     doc = page_fetch(url)
-    img = doc.css(@manga_config["selector"]["page"]).to_a
+    page = doc.css(@manga_config["selector"]["page"]).to_a
 
-    _index = 0
-    images = []
-    img.each{
-      |e|
-      _index = _index + 1
-
-      images << {
-        :number => _index,
-        :url => e["src"]
-      }
+    page.each{
+      |elm|
+      elm.search('.//script').remove
     }
 
-    images
+    page.map!{
+      |e|
+      e.to_s
+    }
   end
 
   def save_links_aria2c(list)
@@ -132,7 +129,7 @@ class MangaDownloader
     out.close
 
     log("Downloading images")
-    system("aria2c --auto-file-renaming=false --continue=true -i urls.txt") if !list.empty?
+    system("aria2c --auto-file-renaming=false --continue=true -q -i urls.txt") if !list.empty?
   end
 
   def file_flush_data(filename, data, write_type = "w")
@@ -145,22 +142,19 @@ class MangaDownloader
     num.to_s.rjust(4, "0")
   end
 
-  def page_html_generate(images, chapter, chapter_total)
+  def page_html_generate(content, chapter, chapter_total)
     chapter_num = chapter["chapter"]
 
     buttons = []
     buttons << "<a class='prev' href='Chapter #{pad_num(chapter_num - 1)}.html'><div>&#9664;</div></a>" if chapter_num > @manga_config["chapters"]["index_start"]
     buttons << "<a class='next' href='Chapter #{pad_num(chapter_num + 1)}.html'><div>&#9654;</div></a>"
 
-    img = images.map {
-      |e|
-      "<img src='./Chapter #{pad_num(chapter_num)}/Page #{e[:number]}.jpg'></img>"
-    }
+    body = "<article>#{content.join("\n")}</article>"
 
     document = TEMPLATE_HTML.gsub("{{chapter_index}}", chapter_num.to_s)
     document = document.gsub("{{mange_title}}", manga_title)
     document = document.gsub("{{button}}", buttons.join("\n"))
-    document = document.gsub("{{body}}", img.join("\n"))
+    document = document.gsub("{{body}}", body)
 
     Dir.mkdir(manga_dir) if !Dir.exist?(manga_dir)
 
@@ -184,35 +178,25 @@ class MangaDownloader
       next if chapter_exist(chapter)
 
       chapter_url = chapter[:url]
-      chapter_images = fetch_chapter_page(chapter_url)
-      log("Chapter #{chapter[:chapter]} has #{chapter_images.length} pages")
+      chapter_content = fetch_chapter_page(chapter_url)
 
       chapter_item = {
         "url" => chapter[:url],
         "chapter" => chapter[:chapter],
         "title" => chapter[:title],
-        "items" => chapter_images,
-        "count" => chapter_images.length
+        "items" => chapter_content
       }
 
       config_push_chapter(chapter_item)
-
-      for image in chapter_images
-        @download_list << {
-          "directory" => "#{@prefix}/#{manga_name}/Chapter #{pad_num(chapter[:chapter])}",
-          "filename" => "Page #{image[:number]}.jpg",
-          "url" => image[:url]
-        }
-      end
-
-      page_html_generate(chapter_images, chapter_item, chapters.length)
       config_save
+
+      page_html_generate(chapter_content, chapter_item, chapters.length)
     end
 
     log("Found #{@download_list.length} images for download")
 
     config_save
-    save_links_aria2c(@download_list)
+    # save_links_aria2c(@download_list)
 
     log("Finish downloading in #{(Time.now - @start).to_duration}")
   end
