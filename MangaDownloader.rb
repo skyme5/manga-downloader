@@ -2,7 +2,7 @@
 # @Author: Aakash Gajjar
 # @Date:   2019-08-03 20:14:06
 # @Last Modified by:   Sky
-# @Last Modified time: 2019-08-22 16:23:01
+# @Last Modified time: 2019-10-05 12:54:01
 
 require 'mechanize'
 require 'nokogiri'
@@ -178,6 +178,7 @@ class MangaDownloader
     if chapters.length > @manga_config["chapters"]["count"]
     else
       log("No new chapters found")
+      return false
     end
 
     for chapter in chapters
@@ -215,5 +216,7 @@ class MangaDownloader
     save_links_aria2c(@download_list)
 
     log("Finish downloading in #{(Time.now - @start).to_duration}")
+
+    return true
   end
 end
