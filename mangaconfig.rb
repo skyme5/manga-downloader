@@ -2,7 +2,7 @@
 # @Author: Aakash Gajjar
 # @Date:   2019-08-03 20:14:06
 # @Last Modified by:   Sky
-# @Last Modified time: 2019-08-22 13:56:08
+# @Last Modified time: 2019-10-05 12:54:30
 
 require 'json'
 
@@ -26,8 +26,8 @@ class MangaConfig
 
   def normalize(title)
     title.gsub(/[\\\/\:\*\?\"\<\>\|]+/, ' - ')
-         .gsub(/\r\n/im, ' ')
-         .gsub(/[ ]{2,}/im, ' ')
+    .gsub(/\r\n/im, ' ')
+    .gsub(/[ ]{2,}/im, ' ')
   end
 
   def manga_name
@@ -65,9 +65,13 @@ class MangaConfig
       url = STDIN.gets.chomp
     end
 
-    puts "Is this Light Novel? [y/n]: "
-    ln = STDIN.gets.chomp
-    ln = !ln.empty? ? ln.downcase.include?("y") : false
+    if url.include?("www.readlightnovel.org")
+      ln = true
+    else
+      puts "Is this Light Novel? [y/n]: "
+      ln = STDIN.gets.chomp
+      ln = !ln.empty? ? ln.downcase.include?("y") : false
+    end
     puts "This is a #{ln ? "Light Novel" : "Manga"}"
 
     puts "Enter index_start[default = 1]: "
@@ -77,7 +81,7 @@ class MangaConfig
     pre_selected = ln ? "#accordion .tab-content li a" : ".chapter-list a"
     puts "Enter Selector for chapter[default = '#{pre_selected }']: "
     input = STDIN.gets.chomp
-    chapter_selector = ln ? (input.empty? ? "#accordion li a" : input) : (input.empty? ? ".chapter-list a" : input)
+    chapter_selector = ln ? (input.empty? ? "#accordion .tab-content li a" : input) : (input.empty? ? ".chapter-list a" : input)
 
     pre_selected = ln ? ".chapter-content3 .desc" : ".vung-doc img"
     puts "Enter Selector for page[default = '#{pre_selected }']: "
@@ -89,8 +93,7 @@ class MangaConfig
     #cover_selector = input.empty? ? ".manga-info-pic img" : input
 
     return {
-      "title" => title.gsub(/\r\n/im, ' ')
-                      .gsub(/[ ]{2,}/im, ' '),
+      "title" => title.gsub(/\r\n/im, ' ').gsub(/[ ]{2,}/im, ' '),
       "url" => url,
       "ln" => ln,
       "name" => [normalize(title), ln ? " - Light Novel" : ""].join(""),

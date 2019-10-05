@@ -2,7 +2,7 @@
 # @Author: Aakash Gajjar
 # @Date:   2019-08-03 20:14:06
 # @Last Modified by:   Sky
-# @Last Modified time: 2019-08-22 16:11:46
+# @Last Modified time: 2019-10-05 12:52:42
 
 require 'mechanize'
 require 'nokogiri'
@@ -162,6 +162,17 @@ class LNDownloader
     file_flush_data(html_page, document, "w") if !File.exist?(html_page)
   end
 
+  def page_json_generate(content, chapter, chapter_total)
+    chapter_num = chapter["chapter"]
+
+    document = content.to_json
+
+    Dir.mkdir(manga_dir) if !Dir.exist?(manga_dir)
+
+    html_page = "#{manga_name}/Chapter #{pad_num(chapter_num)}.json"
+    file_flush_data(html_page, document, "w") if !File.exist?(html_page)
+  end
+
   def download
     log("Getting manga page")
 
@@ -172,6 +183,7 @@ class LNDownloader
     if chapters.length > @manga_config["chapters"]["count"]
     else
       log("No new chapters found")
+      return false
     end
 
     for chapter in chapters
@@ -183,6 +195,11 @@ class LNDownloader
       chapter_item = {
         "url" => chapter[:url],
         "chapter" => chapter[:chapter],
+        "title" => chapter[:title]
+      }
+      chapter_item_json = {
+        "url" => chapter[:url],
+        "chapter" => chapter[:chapter],
         "title" => chapter[:title],
         "items" => chapter_content
       }
@@ -191,13 +208,16 @@ class LNDownloader
       config_save
 
       page_html_generate(chapter_content, chapter_item, chapters.length)
+      page_json_generate(chapter_item_json, chapter_item, chapters.length)
     end
 
-    log("Found #{@download_list.length} images for download")
+    #log("Found #{@download_list.length} images for download")
 
     config_save
     # save_links_aria2c(@download_list)
 
     log("Finish downloading in #{(Time.now - @start).to_duration}")
+
+    return true
   end
 end
