@@ -1,8 +1,4 @@
 #!/usr/bin/ruby
-# @Author: Aakash Gajjar
-# @Date:   2019-08-03 20:14:06
-# @Last Modified by:   Sky
-# @Last Modified time: 2019-10-05 12:54:01
 
 require 'mechanize'
 require 'nokogiri'
@@ -20,6 +16,8 @@ class MangaDownloader
     @prefix = "Z:/Books/Manga"
     @manga_config = config
     @download_list = []
+    @queue = Queue.new
+    @threads = []
   end
 
   def manga_title
@@ -30,12 +28,16 @@ class MangaDownloader
     @manga_config["name"]
   end
 
+  def manga_type
+    @manga_config["ln"] ? "Light Novel" : "Manga"
+  end
+
   def config_filename
-    manga_name + ".json"
+    manga_name + " - #{manga_type}.json"
   end
 
   def config_dir
-    File.join(@prefix, manga_name)
+    File.join(@prefix, manga_name, manga_type)
   end
 
   def manga_dir
@@ -62,12 +64,12 @@ class MangaDownloader
   end
 
   def page_fetch(url)
+    log(url)
     Nokogiri::HTML.parse(open(url))
   end
 
   def chapter_exist(chapter)
-    itexist = @manga_config["chapters"]["items"].select{
-      |e|
+    itexist = @manga_config["chapters"]["items"].select { |e|
       e["url"] == chapter[:url]
     }
 
@@ -86,8 +88,7 @@ class MangaDownloader
     chapters = doc.css(@manga_config["selector"]["chapter"]).to_a.reverse
     log_i("Found #{chapters.length} chapters")
     _index = @manga_config["chapters"]["index_start"].to_i
-    chapters.map!{
-      |e|
+    chapters.map! { |e|
       data = {
         :chapter => _index,
         :title => e["title"],
@@ -104,8 +105,7 @@ class MangaDownloader
 
     _index = 0
     images = []
-    img.each{
-      |e|
+    img.each { |e|
       _index = _index + 1
 
       images << {
@@ -118,8 +118,7 @@ class MangaDownloader
   end
 
   def save_links_aria2c(list)
-    download = list.flatten.map!{
-      |url|
+    download = list.flatten.map! { |url|
       [
         url["url"],
         "    dir=" + url["directory"],
@@ -152,8 +151,7 @@ class MangaDownloader
     buttons << "<a class='prev' href='Chapter #{pad_num(chapter_num - 1)}.html'><div>&#9664;</div></a>" if chapter_num > @manga_config["chapters"]["index_start"]
     buttons << "<a class='next' href='Chapter #{pad_num(chapter_num + 1)}.html'><div>&#9654;</div></a>"
 
-    img = images.map {
-      |e|
+    img = images.map { |e|
       "<img src='./Chapter #{pad_num(chapter_num)}/Page #{e[:number]}.jpg'></img>"
     }
 
@@ -164,8 +162,53 @@ class MangaDownloader
 
     Dir.mkdir(manga_dir) if !Dir.exist?(manga_dir)
 
-    html_page = "#{manga_name}/Chapter #{pad_num(chapter_num)}.html"
+    html_page = "#{manga_name}/#{manga_type}/Chapter #{pad_num(chapter_num)}.html"
     file_flush_data(html_page, document, "w") if !File.exist?(html_page)
+  end
+
+  def parallel
+    4.times do
+      @threads << Thread.new do
+        # loop until there are no more things to do
+        until @queue.empty?
+          # pop with the non-blocking flag set, this raises
+          # an exception if the queue is empty, in which case
+          # work_unit will be set to nil
+          work_unit = @queue.pop(true) rescue nil
+          if work_unit
+            chapter = work_unit[:data]
+            total = work_unit[:total]
+            chapter_url = chapter[:url]
+            chapter_images = fetch_chapter_page(chapter_url)
+            log("Chapter #{chapter[:chapter]} has #{chapter_images.length} pages")
+
+            chapter_item = {
+              "url" => chapter[:url],
+              "chapter" => chapter[:chapter],
+              "title" => chapter[:title],
+              "items" => chapter_images,
+              "count" => chapter_images.length
+            }
+
+            config_push_chapter(chapter_item)
+
+            for image in chapter_images
+              @download_list << {
+                "directory" => "#{@prefix}/#{manga_name}/#{manga_type}/Chapter #{pad_num(chapter[:chapter])}",
+                "filename" => "Page #{image[:number]}.jpg",
+                "url" => image[:url]
+              }
+            end
+
+            page_html_generate(chapter_images, chapter_item, total)
+          end
+        end
+        # when there is no more work, the thread will stop
+      end
+    end
+
+    # wait until all threads have completed processing
+    @threads.each { |t| t.join }
   end
 
   def download
@@ -181,34 +224,10 @@ class MangaDownloader
       return false
     end
 
-    for chapter in chapters
-      next if chapter_exist(chapter)
+    chapters.select! { |e| !chapter_exist(e) }
+    chapters.each { |e| @queue << { data: e, total: chapters.length } }
 
-      chapter_url = chapter[:url]
-      chapter_images = fetch_chapter_page(chapter_url)
-      log("Chapter #{chapter[:chapter]} has #{chapter_images.length} pages")
-
-      chapter_item = {
-        "url" => chapter[:url],
-        "chapter" => chapter[:chapter],
-        "title" => chapter[:title],
-        "items" => chapter_images,
-        "count" => chapter_images.length
-      }
-
-      config_push_chapter(chapter_item)
-
-      for image in chapter_images
-        @download_list << {
-          "directory" => "#{@prefix}/#{manga_name}/Chapter #{pad_num(chapter[:chapter])}",
-          "filename" => "Page #{image[:number]}.jpg",
-          "url" => image[:url]
-        }
-      end
-
-      page_html_generate(chapter_images, chapter_item, chapters.length)
-      config_save
-    end
+    parallel
 
     log("Found #{@download_list.length} images for download")
 

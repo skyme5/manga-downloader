@@ -1,13 +1,11 @@
 #!/usr/bin/ruby
-# @Author: Aakash Gajjar
-# @Date:   2019-08-03 20:14:06
-# @Last Modified by:   Sky
-# @Last Modified time: 2019-10-05 12:52:42
 
 require 'mechanize'
 require 'nokogiri'
 require 'open-uri'
 require 'json'
+require 'thread'
+
 require 'to_duration'
 require 'ColoredLogger'
 
@@ -20,6 +18,8 @@ class LNDownloader
     @prefix = "Z:/Books/Manga"
     @manga_config = config
     @download_list = []
+    @queue = Queue.new
+    @threads = []
   end
 
   def manga_title
@@ -30,12 +30,16 @@ class LNDownloader
     @manga_config["name"]
   end
 
+  def manga_type
+    @manga_config["ln"] ? "Light Novel" : "Manga"
+  end
+
   def config_filename
-    manga_name + ".json"
+    manga_name + " - #{manga_type}.json"
   end
 
   def config_dir
-    File.join(@prefix, manga_name)
+    File.join(@prefix, manga_name, manga_type)
   end
 
   def manga_dir
@@ -67,8 +71,7 @@ class LNDownloader
   end
 
   def chapter_exist(chapter)
-    itexist = @manga_config["chapters"]["items"].select{
-      |e|
+    itexist = @manga_config["chapters"]["items"].select { |e|
       e["url"] == chapter[:url]
     }
 
@@ -87,8 +90,7 @@ class LNDownloader
     chapters = doc.css(@manga_config["selector"]["chapter"]).to_a
     log_i("Found #{chapters.length} chapters")
     _index = @manga_config["chapters"]["index_start"].to_i
-    chapters.map!{
-      |e|
+    chapters.map! { |e|
       data = {
         :chapter => _index,
         :title => e.text,
@@ -103,20 +105,17 @@ class LNDownloader
     doc = page_fetch(url)
     page = doc.css(@manga_config["selector"]["page"]).to_a
 
-    page.each{
-      |elm|
+    page.each { |elm|
       elm.search('.//script').remove
     }
 
-    page.map!{
-      |e|
+    page.map! { |e|
       e.to_s
     }
   end
 
   def save_links_aria2c(list)
-    download = list.flatten.map!{
-      |url|
+    download = list.flatten.map! { |url|
       [
         url["url"],
         "    dir=" + url["directory"],
@@ -158,7 +157,7 @@ class LNDownloader
 
     Dir.mkdir(manga_dir) if !Dir.exist?(manga_dir)
 
-    html_page = "#{manga_name}/Chapter #{pad_num(chapter_num)}.html"
+    html_page = "#{manga_name}//#{manga_type}/Chapter #{pad_num(chapter_num)}.html"
     file_flush_data(html_page, document, "w") if !File.exist?(html_page)
   end
 
@@ -169,8 +168,49 @@ class LNDownloader
 
     Dir.mkdir(manga_dir) if !Dir.exist?(manga_dir)
 
-    html_page = "#{manga_name}/Chapter #{pad_num(chapter_num)}.json"
+    html_page = "#{manga_name}/#{manga_type}/Chapter #{pad_num(chapter_num)}.json"
     file_flush_data(html_page, document, "w") if !File.exist?(html_page)
+  end
+
+  def parallel
+    4.times do
+      @threads << Thread.new do
+        # loop until there are no more things to do
+        until @queue.empty?
+          # pop with the non-blocking flag set, this raises
+          # an exception if the queue is empty, in which case
+          # work_unit will be set to nil
+          work_unit = @queue.pop(true) rescue nil
+          if work_unit
+            chapter = work_unit[:data]
+            total = work_unit[:total]
+            chapter_url = chapter[:url]
+            chapter_content = fetch_chapter_page(chapter_url)
+
+            chapter_item = {
+              "url" => chapter[:url],
+              "chapter" => chapter[:chapter],
+              "title" => chapter[:title]
+            }
+            chapter_item_json = {
+              "url" => chapter[:url],
+              "chapter" => chapter[:chapter],
+              "title" => chapter[:title],
+              "items" => chapter_content
+            }
+
+            config_push_chapter(chapter_item)
+
+            page_html_generate(chapter_content, chapter_item, total)
+            page_json_generate(chapter_item_json, chapter_item, total)
+          end
+        end
+        # when there is no more work, the thread will stop
+      end
+    end
+
+    # wait until all threads have completed processing
+    @threads.each { |t| t.join }
   end
 
   def download
@@ -186,36 +226,12 @@ class LNDownloader
       return false
     end
 
-    for chapter in chapters
-      next if chapter_exist(chapter)
+    chapters.select! { |e| !chapter_exist(e) }
+    chapters.each { |e| @queue << { data: e, total: chapters.length } }
 
-      chapter_url = chapter[:url]
-      chapter_content = fetch_chapter_page(chapter_url)
-
-      chapter_item = {
-        "url" => chapter[:url],
-        "chapter" => chapter[:chapter],
-        "title" => chapter[:title]
-      }
-      chapter_item_json = {
-        "url" => chapter[:url],
-        "chapter" => chapter[:chapter],
-        "title" => chapter[:title],
-        "items" => chapter_content
-      }
-
-      config_push_chapter(chapter_item)
-      config_save
-
-      page_html_generate(chapter_content, chapter_item, chapters.length)
-      page_json_generate(chapter_item_json, chapter_item, chapters.length)
-    end
-
-    #log("Found #{@download_list.length} images for download")
+    parallel
 
     config_save
-    # save_links_aria2c(@download_list)
-
     log("Finish downloading in #{(Time.now - @start).to_duration}")
 
     return true
