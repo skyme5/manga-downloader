@@ -6,16 +6,19 @@ require 'open-uri'
 require 'json'
 require 'thread'
 
+require 'http'
 require 'to_duration'
-require 'ColoredLogger'
+require 'tty-logger'
 
 require_relative 'templates'
 
 class LNDownloader
   def initialize(config)
     @start = Time.now
-    @logger = ColoredLogger.new(STDOUT)
-    @prefix = "Z:/Books/Manga"
+    @logger = TTY::Logger.new do |config|
+      config.level = :debug # or "INFO" or TTY::Logger::INFO_LEVEL
+    end
+    @prefix = "z:/Books/Manga"
     @manga_config = config
     @download_list = []
     @queue = Queue.new
@@ -67,7 +70,7 @@ class LNDownloader
 
   def page_fetch(url)
     log(url)
-    Nokogiri::HTML.parse(open(url))
+    Nokogiri::HTML.parse(HTTP.get(url).to_s)
   end
 
   def chapter_exist(chapter)
@@ -232,7 +235,7 @@ class LNDownloader
     parallel
 
     config_save
-    log("Finish downloading in #{(Time.now - @start).to_duration}")
+    log("Finish downloading in #{(Time.now - @start)}s")
 
     return true
   end

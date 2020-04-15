@@ -1,38 +1,41 @@
-#!/usr/bin/ruby
+#!/usr/bin/env ruby
+# frozen_string_literal: true
 
 require 'json'
 require 'fileutils'
 
 class MangaConfig
   def initialize
-    @prefix = "Z:/Books/Manga"
+    @prefix = 'z:/Books/Manga'
+    @selectors = JSON.parse(File.read(File.join(__dir__, 'config.json')))
     @manga_config = config_create_new
     config_save
   end
 
   def get
-    return @manga_config
+    @manga_config
   end
 
   def config_save
-    FileUtils.mkpath(config_dir) if !Dir.exist?(config_dir)
-    out = File.open(config_path, "w")
+    FileUtils.mkpath(config_dir) unless Dir.exist?(config_dir)
+    out = File.open(config_path, 'w')
     out.puts @manga_config.to_json
     out.close
   end
 
   def normalize(title)
-    title.gsub(/[\\\/\:\*\?\"\<\>\|]+/, ' - ')
-         .gsub(/\r\n/im, ' ')
-         .gsub(/[ ]{2,}/im, ' ')
+    title.gsub(%r{[\\\/\:\*\?\"\<\>\|]+}, ' - ').gsub(/\r\n/im, ' ').gsub(
+      /[ ]{2,}/im,
+      ' '
+    )
   end
 
   def manga_name
-    @manga_config["name"]
+    @manga_config['name']
   end
 
   def manga_type
-    @manga_config["ln"] ? "Light Novel" : "Manga"
+    @manga_config['ln'] ? 'Light Novel' : 'Manga'
   end
 
   def config_filename
@@ -52,62 +55,62 @@ class MangaConfig
   end
 
   def config_create_new
-    puts "Enter title of mange: "
+    puts 'Enter title of manga: '
     title = STDIN.gets.chomp
     while title.empty?
-      puts "Enter title of mange: "
+      puts 'Enter title of manga: '
       title = STDIN.gets.chomp
     end
 
-    puts "Enter url of mange: "
+    puts 'Enter url of manga: '
     url = STDIN.gets.chomp
     while url.empty?
-      puts "Enter url of mange: "
+      puts 'Enter url of manga: '
       url = STDIN.gets.chomp
     end
 
-    if url.include?("www.readlightnovel.org")
+    if url.include?('www.readlightnovel.org')
       ln = true
+    elsif url.include?('manganelo.com')
+      ln = false
     else
-      puts "Is this Light Novel? [y/n]: "
+      puts 'Is this Light Novel? [y/n, default = n]: '
       ln = STDIN.gets.chomp
-      ln = !ln.empty? ? ln.downcase.include?("y") : false
+      ln = !ln.empty? ? ln.downcase.include?('y') : false
     end
-    puts "This is a #{ln ? "Light Novel" : "Manga"}"
+    puts "This is a #{ln ? 'Light Novel' : 'Manga'}"
 
-    puts "Enter index_start[default = 1]: "
+    puts 'Enter index_start[default = 1]: '
     input = STDIN.gets.chomp
     index_start = input.empty? ? 1 : input.to_i
 
-    pre_selected = ln ? "#accordion .tab-content li a" : ".chapter-list a"
+    pre_selected = @selectors[URI(url).host]['chapter']
     puts "Enter Selector for chapter[default = '#{pre_selected}']: "
     input = STDIN.gets.chomp
-    chapter_selector = ln ? (input.empty? ? "#accordion .tab-content li a" : input) : (input.empty? ? ".chapter-list a" : input)
+    chapter_selector = input.empty? ? pre_selected : input
 
-    pre_selected = ln ? ".chapter-content3 .desc" : ".vung-doc img"
+    pre_selected = @selectors[URI(url).host]['page']
     puts "Enter Selector for page[default = '#{pre_selected}']: "
     input = STDIN.gets.chomp
-    page_selector = ln ? (input.empty? ? ".chapter-content3 .desc" : input) : (input.empty? ? ".vung-doc img" : input)
+    page_selector = input.empty? ? pre_selected : input
 
     # puts "Enter Selector for cover[default = '.manga-info-pic img']: "
     # input = STDIN.gets.chomp
     # cover_selector = input.empty? ? ".manga-info-pic img" : input
 
-    return {
-      "title" => title.gsub(/\r\n/im, ' ').gsub(/[ ]{2,}/im, ' '),
-      "url" => url,
-      "ln" => ln,
-      "name" => [normalize(title), ln ? " - Light Novel" : ""].join(""),
-      "chapters" => {
-        "index_start" => index_start,
-        "index_end" => 0,
-        "count" => 0,
-        "items" => []
+    {
+      'host' => URI(url).host,
+      'title' => title.gsub(/\r\n/im, ' ').gsub(/[ ]{2,}/im, ' '),
+      'url' => url,
+      'ln' => ln,
+      'name' => [normalize(title), ln ? ' - Light Novel' : ''].join(''),
+      'chapters' => {
+        'index_start' => index_start,
+        'index_end' => 0,
+        'count' => 0,
+        'items' => []
       },
-      "selector" => {
-        "chapter" => chapter_selector,
-        "page" => page_selector
-      }
+      'selector' => { 'chapter' => chapter_selector, 'page' => page_selector }
     }
   end
 end

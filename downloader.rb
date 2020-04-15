@@ -1,4 +1,5 @@
-#!/usr/bin/ruby
+#!/usr/bin/env ruby
+# frozen_string_literal: true
 
 require 'optparse'
 require 'json'
@@ -7,46 +8,51 @@ require_relative 'MangaConfig'
 require_relative 'MangaDownloader'
 require_relative 'LNDownloader'
 
-MANGA_DIR = "Z:/Books/Manga"
+MANGA_DIR = 'z:/Books/Manga'
+SELECTOR_CONFIG = JSON.parse(File.read(File.join(__dir__, 'config.json')))
 
 $messages = []
-def download(config)
-  if config["ln"]
-    download = LNDownloader.new(config)
+def update_selectors(config)
+  config['selector'] = SELECTOR_CONFIG[URI(config['url']).host]
+  config
+end
 
-    if download.download
-      $messages << "Downloaded [#{config["title"]}]"
-    end
+def download(config, _config_path)
+  config = update_selectors(config)
+
+  if config['ln']
+    download = LNDownloader.new(config)
   else
     download = MangaDownloader.new(config)
+  end
+  system('rm urls.txt') if File.exist?('urls.txt')
+  $messages << "Downloaded [#{config['title']}]" if download.download
+end
 
-    if download.download
-      $messages << "Downloaded [#{config["title"]}]"
+if ARGV.length.positive?
+  while true
+    config = MangaConfig.new
+    download(config.get, config.config_path)
+    puts 'Download new ? [y/n]'
+    exit unless STDIN.gets.chomp.include? 'y'
+  end
+else
+  manga =
+    Dir.entries(MANGA_DIR)[2..-1].select do |e|
+      File.directory?(File.join(MANGA_DIR, e))
+    end
+
+  manga.each do |m|
+    [
+      File.join(MANGA_DIR, m, 'Manga', m + ' - Manga.json'),
+      File.join(MANGA_DIR, m, 'Light Novel', m + ' - Light Novel.json')
+    ].each do |config_path|
+      if File.exist?(config_path)
+        config = JSON.parse(File.read(config_path))
+        download(config, config_path)
+      end
     end
   end
 end
 
-if ARGV.length > 0
-  config = MangaConfig.new()
-  download(config.get)
-else
-  manga = Dir.entries(MANGA_DIR)[2..-1].select { |e|
-    File.directory?(File.join(MANGA_DIR, e))
-  }
-
-  manga.each { |m|
-    config_path = File.join(MANGA_DIR, m, "Manga", m + " - Manga.json")
-    if File.exist?(config_path)
-      config = JSON.parse(File.read(config_path))
-      download(config)
-    end
-
-    config_path = File.join(MANGA_DIR, m, "Light Novel", m + " - Light Novel.json")
-    if File.exist?(config_path)
-      config = JSON.parse(File.read(config_path))
-      download(config)
-    end
-  }
-end
-
-puts $messages if !$messages.empty?
+puts $messages unless $messages.empty?

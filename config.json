@@ -1,0 +1,8 @@
+{
+    "manganelo.com": {
+        "chapter":".row-content-chapter a","page":".container-chapter-reader img"
+    },
+    "www.readlightnovel.org": {
+        "chapter":"#accordion .tab-content li a","page":".chapter-content3 .desc"
+    }
+}

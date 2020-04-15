@@ -1,2 +1,0 @@
-@echo off
-downloader.rb
