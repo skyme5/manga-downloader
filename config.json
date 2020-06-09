@@ -1,8 +1,18 @@
 {
     "manganelo.com": {
-        "chapter":".row-content-chapter a","page":".container-chapter-reader img"
+        "ln": false,
+        "chapter":".row-content-chapter a","page":".container-chapter-reader img","page1": "img"
     },
     "www.readlightnovel.org": {
+        "ln": true,
         "chapter":"#accordion .tab-content li a","page":".chapter-content3 .desc"
+    },
+    "jpmtl.com": {
+        "ln": true,
+        "chapter":".book-ccontent a","page":"article"
+    },
+    "mangakakalots.com": {
+        "ln": false,
+        "chapter":"#chapter .chapter-list a","page":"img"
     }
 }

@@ -29,30 +29,40 @@ def download(config, _config_path)
   $messages << "Downloaded [#{config['title']}]" if download.download
 end
 
-if ARGV.length.positive?
+def download_manga(title)
+  [
+    File.join(MANGA_DIR, title, 'Manga', title + ' - Manga.json'),
+    File.join(
+      MANGA_DIR,
+      title,
+      'Light Novel - WEB',
+      title + ' - Light Novel.json'
+    )
+  ].each do |config_path|
+    if File.exist?(config_path)
+      config = JSON.parse(File.read(config_path))
+      download(config, config_path)
+    end
+  end
+end
+
+if ARGV.empty?
   while true
     config = MangaConfig.new
     download(config.get, config.config_path)
-    puts 'Download new ? [y/n]'
-    exit unless STDIN.gets.chomp.include? 'y'
   end
-else
+elsif ARGV.include? '-u'
   manga =
     Dir.entries(MANGA_DIR)[2..-1].select do |e|
       File.directory?(File.join(MANGA_DIR, e))
     end
 
-  manga.each do |m|
-    [
-      File.join(MANGA_DIR, m, 'Manga', m + ' - Manga.json'),
-      File.join(MANGA_DIR, m, 'Light Novel', m + ' - Light Novel.json')
-    ].each do |config_path|
-      if File.exist?(config_path)
-        config = JSON.parse(File.read(config_path))
-        download(config, config_path)
-      end
-    end
+  manga.each do |title|
+    download_manga(title)
   end
+elsif ARGV.include? '-d'
+  title = ARGV.last
+  download_manga(title)
 end
 
 puts $messages unless $messages.empty?

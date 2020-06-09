@@ -38,12 +38,16 @@ class MangaConfig
     @manga_config['ln'] ? 'Light Novel' : 'Manga'
   end
 
+  def manga_folder
+    @manga_config['ln'] ? 'Light Novel - WEB' : 'Manga'
+  end
+
   def config_filename
     manga_name + " - #{manga_type}.json"
   end
 
   def config_dir
-    File.join(@prefix, manga_name, manga_type)
+    File.join(@prefix, manga_name, manga_folder)
   end
 
   def manga_dir
@@ -69,10 +73,8 @@ class MangaConfig
       url = STDIN.gets.chomp
     end
 
-    if url.include?('www.readlightnovel.org')
-      ln = true
-    elsif url.include?('manganelo.com')
-      ln = false
+    if @selectors.key?(URI(url).host)
+      ln = @selectors[URI(url).host]['ln']
     else
       puts 'Is this Light Novel? [y/n, default = n]: '
       ln = STDIN.gets.chomp
@@ -103,7 +105,7 @@ class MangaConfig
       'title' => title.gsub(/\r\n/im, ' ').gsub(/[ ]{2,}/im, ' '),
       'url' => url,
       'ln' => ln,
-      'name' => [normalize(title), ln ? ' - Light Novel' : ''].join(''),
+      'name' => normalize(title),
       'chapters' => {
         'index_start' => index_start,
         'index_end' => 0,

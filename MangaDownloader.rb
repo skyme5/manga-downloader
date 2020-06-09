@@ -68,8 +68,15 @@ class MangaDownloader
   end
 
   def page_fetch(url)
-    log(url)
-    Nokogiri::HTML.parse(HTTP.get(url).to_s)
+    html = HTTP.get(url, {
+			headers: {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/83.0.4103.61 Safari/537.36'}
+		}).to_s
+    Nokogiri::HTML(
+      html
+      .gsub('<!--', '')
+      .gsub('-->', '')
+      .gsub('data-src=', 'src=')
+    )
   end
 
   def chapter_exist(chapter)
@@ -108,6 +115,7 @@ class MangaDownloader
   def fetch_chapter_page(url)
     doc = page_fetch(url)
     img = doc.css(@manga_config['selector']['page']).to_a
+    img = doc.css(@manga_config['selector']['page1']).to_a if img.length < 3
 
     index = 0
     images = []
@@ -187,7 +195,7 @@ class MangaDownloader
   end
 
   def parallel
-    4.times do
+    1.times do
       @threads <<
         Thread.new do
           # loop until there are no more things to do

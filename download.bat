@@ -1,2 +1,2 @@
 @echo off
-downloader.rb -n
+downloader.rb %*
